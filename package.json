@@ -58,7 +58,7 @@
   "scripts": {
     "start": "node app.js",
     "stop": "node stop.js",
-    "lint": "eslint ./cli ./lib app.js forever.js",
+    "lint": "eslint app.js forever.js",
     "package": "node cli/package.js",
     "test": "mocha tests/*.*.integ.test.js --timeout 90000 && nyc mocha tests/*.*.unit.test.js"
   },
