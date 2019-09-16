@@ -36,6 +36,7 @@ jobs:
         - '12'
       script:
         - npm install -g js-yaml
+        - npm run lint
         - bash ./test-functional/e2evars.sh
 notifications:
   slack:
