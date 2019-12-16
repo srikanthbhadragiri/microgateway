@@ -213,6 +213,7 @@ const setup = function setup() {
                 }
             }
             if (options.configUrl) {
+                console.log('start - options.configUrl ', options.configUrl);
                 options.configDir = options.configDir || os.homedir() + "/" + ".edgemicro";
                 if (!fs.existsSync(options.configDir)) fs.mkdirSync(options.configDir);
                 var fileName = options.org + "-" + options.env + "-config.yaml";
@@ -304,6 +305,36 @@ const setup = function setup() {
                     });
                 }
             } else run.reload(options);
+        });
+
+    commander
+        .command('startSynchronizer')
+        .option('-o, --org <org>', 'the organization')
+        .option('-e, --env <env>', 'the environment')
+        .option('-k, --key <key>', 'key for authenticating with Edge')
+        .option('-s, --secret <secret>', 'secret for authenticating with Edge')
+        .description('get bootstrap data and sync in Redis')
+        .action((options) => {
+            options.error = optionError(options);
+            options.secret = options.secret || process.env.EDGEMICRO_SECRET;
+            options.key = options.key || process.env.EDGEMICRO_KEY;
+            options.org = options.org || process.env.EDGEMICRO_ORG;
+            options.env = options.env || process.env.EDGEMICRO_ENV;
+            if (!options.key) {
+                return options.error('key is required');
+            }
+            if (!options.secret) {
+                return options.error('secret is required');
+            }
+            if (!options.org) {
+                return options.error('org is required');
+            }
+            if (!options.env) {
+                return options.error('env is required');
+            }else {
+                // console.log('commander - options ', options)
+                run.startSynchronizer(options);
+            } 
         });
 
     commander

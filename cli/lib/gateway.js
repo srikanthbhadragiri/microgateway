@@ -36,7 +36,6 @@ function initializeMicroGatewayLogging(config,options) {
     gateway.Logging.init(config,options);
 }
 
-
 Gateway.prototype.start = (options,cb) => {
     //const self = this;
     try {
@@ -56,6 +55,10 @@ Gateway.prototype.start = (options,cb) => {
     const source = configLocations.getSourcePath(options.org, options.env, options.configDir);
     const cache = configLocations.getCachePath(options.org, options.env, options.configDir);
     const configurl = options.configUrl;   
+
+    console.log('source : ', source);
+    console.log('cache  : ', cache);
+    console.log('configurl  : ', configurl);
     
     const keys = {
         key: options.key,
@@ -83,6 +86,8 @@ Gateway.prototype.start = (options,cb) => {
         env: options.env
     }
 
+    console.log('configOptions XXX: ', configOptions);
+
     edgeconfig.get(configOptions, (err, config) => {
         if (err) {
             const exists = fs.existsSync(cache);
@@ -104,6 +109,8 @@ Gateway.prototype.start = (options,cb) => {
             if (options.port) {
                 config.edgemicro.port = parseInt(options.port);
             }
+            
+            console.log('config - regular save ', config);
             edgeconfig.save(config, cache);
         }
 
@@ -159,7 +166,7 @@ Gateway.prototype.start = (options,cb) => {
                         process.exit(0);
                     });
                 } else if (message.command === 'status') {
-			socket.sendMessage(mgCluster.countTracked());
+			        socket.sendMessage(mgCluster.countTracked());
                 }
             });
         });
@@ -348,6 +355,71 @@ Gateway.prototype.status = ( /* options */ ) => {
       }
     });
     socket.connect(ipcPath);
+};
+
+Gateway.prototype.startSynchronizer = (options) => {
+    // console.log('prototype - start synchronizer - ', options);
+    const source = configLocations.getSourcePath(options.org, options.env, options.configDir);
+    const cache = configLocations.getCachePath(options.org, options.env, options.configDir);
+    const configurl = options.configUrl;   
+
+    console.log('source ssyn: ', source);
+    console.log('cache  ssyn: ', cache);
+    // console.log('configurl  a: ', configurl);
+
+    const keys = {
+        key: options.key,
+        secret: options.secret
+    };
+
+    var args = {
+        target: cache,
+        keys: keys,
+        pluginDir: options.pluginDir
+    };
+
+    const localproxy = {
+        apiProxyName: options.apiProxyName,
+        revision: options.revision,
+        basePath: options.basepath,
+        targetEndpoint: options.target
+    };
+
+    var configOptions = {
+        source: source,
+        keys: keys,
+        localproxy: localproxy,
+        org: options.org,
+        env: options.env
+    }
+
+    // console.log('configOptions : ', configOptions);
+
+    edgeconfig.get(configOptions, (err, config) => {
+        if (err) {
+            const exists = fs.existsSync(cache);
+            writeConsoleLog('error',{component: CONSOLE_LOG_TAG_COMP},"failed to retieve config from gateway. continuing, will try cached copy..");
+            writeConsoleLog('error',{component: CONSOLE_LOG_TAG_COMP},err);
+            if (!exists) {
+                writeConsoleLog('error',{component: CONSOLE_LOG_TAG_COMP},'cache configuration ' + cache + ' does not exist. exiting.');
+                return;
+            } else {
+                writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},'using cached configuration from %s', cache);
+                config = edgeconfig.load({
+                    source: cache
+                });
+                if (options.port) {
+                    config.edgemicro.port = parseInt(options.port);
+                }
+            }
+        } else {
+            if (options.port) {
+                config.edgemicro.port = parseInt(options.port);
+            }
+            // console.log('new config to be saved in redis ', config);
+            edgeconfig.saveRemoteCacheConfig(config, options);
+        }
+    });
 };
 
 function hasConfigChanged(oldConfig, newConfig) {
