@@ -143,6 +143,7 @@ const setup = function setup() {
         .option('-v, --revision <revision>', 'api proxy revision; required if apiProxyName is set')
         .option('-b, --basepath <basepath>', 'api proxy basePath; required if apiProxyName is set')
         .option('-t, --target <target>', 'target endpoint for proxy; required if apiProxyName is set')
+        .option('-y, --envoy <envoy>', 'Start Edgemicro with Envoy proxy as a side car')
         .description('start the gateway based on configuration')
         .action((options) => {
             options.error = optionError(options);
@@ -158,6 +159,7 @@ const setup = function setup() {
             options.revision = options.revision || process.env.EDGEMICRO_API_REVISION;
             options.basepath = options.basepath || process.env.EDGEMICRO_API_BASEPATH;
             options.target = options.target || process.env.EDGEMICRO_API_TARGET;
+            options.envoy = options.envoy || 'no';
 
             debug("EDGEMICRO_LOCAL: " + process.env.EDGEMICRO_LOCAL)
             debug("EDGEMICRO_LOCAL_PROXY: " + process.env.EDGEMICRO_LOCAL_PROXY)
