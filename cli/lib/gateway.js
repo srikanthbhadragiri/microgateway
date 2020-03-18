@@ -141,6 +141,8 @@ Gateway.prototype.start = (options,cb) => {
                 args.pluginDir = path.resolve(config.edgemicro.plugins.dir);
             }
         }
+        // Passing envoy argument for implementing envoy proxy as sidecar.
+        args.envoy = options.envoy;
         opt.args = [JSON.stringify(args)];
         opt.timeout = 10;
         opt.logger = gateway.Logging.getLogger();
