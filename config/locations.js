@@ -10,6 +10,7 @@ const defaultFile = 'default.yaml';
 const cacheFile =  'cache-config.yaml';
 const defaultIPCFileName = 'edgemicro';
 const isWin = /^win/.test(process.platform);
+const envoyConfigFile = 'emg-envoy-proxy-config.yaml';
 
 module.exports = {
   getInitPath: function(opts){
@@ -52,4 +53,10 @@ module.exports = {
   },  
   homeDir: homeDir,
   defaultDir: configDir,
+  getEnvoyInitPath: function(opts){
+    return  path.join(configDir,envoyConfigFile);
+  },
+  getEnvoyConfigPath: function(){
+    return path.join(this.homeDir,envoyConfigFile);
+  },
 };

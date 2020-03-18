@@ -39,6 +39,29 @@ function initializeMicroGatewayLogging(config,options) {
     gateway.Logging.init(config,options);
 }
 
+function copyFile(source, target, cb) {
+    var cbCalled = false;
+  
+    var rd = fs.createReadStream(source);
+    rd.on("error", function(err) {
+      done(err);
+    });
+    var wr = fs.createWriteStream(target);
+    wr.on("error", function(err) {
+      done(err);
+    });
+    wr.on("close", function( /* ex */) {
+      done();
+    });
+    rd.pipe(wr);
+  
+    function done(err) {
+      if (!cbCalled) {
+        cb(err);
+        cbCalled = true;
+      }
+    }
+  }
 
 Gateway.prototype.start = (options,cb) => {
     //const self = this;
@@ -59,7 +82,7 @@ Gateway.prototype.start = (options,cb) => {
     const source = configLocations.getSourcePath(options.org, options.env, options.configDir);
     const cache = configLocations.getCachePath(options.org, options.env, options.configDir);
     const configurl = options.configUrl;   
-    
+
     const keys = {
         key: options.key,
         secret: options.secret
@@ -86,6 +109,23 @@ Gateway.prototype.start = (options,cb) => {
         env: options.env
     }
 
+    const envoySrcFile = configLocations.getEnvoyInitPath();
+    const envoyDestFile = configLocations.getEnvoyConfigPath(); 
+
+    if(options.envoy && options.envoy === 'yes'){
+        if(!fs.existsSync(envoyDestFile)) {
+            copyFile(envoySrcFile, envoyDestFile, (err) => {
+                if ( err ) {
+                    writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},"Failed to copy emg-envoy-proxy-config.yaml file %s", err);
+                } 
+                if (cb && (typeof cb === "function")) {
+                    writeConsoleLog('log', { component: CONSOLE_LOG_TAG_COMP }, "Calling cb");
+                    cb(err, envoyDestFile);
+                }
+            });
+        }
+    }
+    
     const startSynchronizer = (err, config) => {
         if (err) {
             writeConsoleLog('error', { component: CONSOLE_LOG_TAG_COMP }, "Failed in writing to Redis DB.", err);
