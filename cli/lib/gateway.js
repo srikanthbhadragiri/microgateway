@@ -39,7 +39,6 @@ function initializeMicroGatewayLogging(config,options) {
     gateway.Logging.init(config,options);
 }
 
-
 Gateway.prototype.start = (options,cb) => {
     //const self = this;
     try {
@@ -58,8 +57,8 @@ Gateway.prototype.start = (options,cb) => {
 
     const source = configLocations.getSourcePath(options.org, options.env, options.configDir);
     const cache = configLocations.getCachePath(options.org, options.env, options.configDir);
-    const configurl = options.configUrl;   
-    
+    const configurl = options.configUrl;
+
     const keys = {
         key: options.key,
         secret: options.secret
@@ -84,6 +83,19 @@ Gateway.prototype.start = (options,cb) => {
         localproxy: localproxy,
         org: options.org,
         env: options.env
+    }
+
+    const envoySrcFile = configLocations.getEnvoyInitPath();
+    const envoyDestFile = configLocations.getEnvoyConfigPath();
+
+    if(options.envoy && options.envoy === 'yes'){
+        if(!fs.existsSync(envoyDestFile)) {
+            fs.copyFile(envoySrcFile, envoyDestFile, (err) => {
+                if ( err ) {
+                    writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},"Failed to copy emg-envoy-proxy-config.yaml file %s", err);
+                }
+            });
+        }
     }
 
     const startSynchronizer = (err, config) => {
