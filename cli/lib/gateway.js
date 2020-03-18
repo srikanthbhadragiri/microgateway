@@ -251,23 +251,7 @@ Gateway.prototype.start = (options,cb) => {
 
     const sourceConfig = edgeconfig.load(configOptions);
 
-    if(options.envoy && options.envoy === 'yes'){
-
-        const envoySrcFile = configLocations.getEnvoyInitPath();
-        const envoyDestFile = configLocations.getEnvoyConfigPath();
-
-        const envoyConfOptions = {
-            source: envoyDestFile,
-        };
-
-        if(!fs.existsSync(envoyDestFile)) {
-            fs.copyFile(envoySrcFile, envoyDestFile, (err) => {
-                if ( err ) {
-                    writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},"Failed to copy emg-envoy-proxy-config.yaml file %s", err);
-                }
-            });
-        }
-
+    const startEnvoyProxy = (envoyConfOptions) => {
         const envoyConfig = edgeconfig.load(envoyConfOptions);
 
         // assign emg port to envoy
@@ -282,7 +266,25 @@ Gateway.prototype.start = (options,cb) => {
                 debug(`stderr: ${stderr}`);
             }
         });
+    }
 
+    if(options.envoy && options.envoy === 'yes'){
+
+        const envoySrcFile = configLocations.getEnvoyInitPath();
+        const envoyDestFile = configLocations.getEnvoyConfigPath();
+
+        const envoyConfOptions = {
+            source: envoyDestFile,
+        };
+
+        if(!fs.existsSync(envoyDestFile)) {
+            fs.copyFile(envoySrcFile, envoyDestFile, (err) => {
+                if ( err ) {
+                    writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},"Failed to copy emg-envoy-proxy-config.yaml file %s", err);
+                }
+                startEnvoyProxy(envoyConfOptions);
+            });
+        }
     }
     
     if(sourceConfig.edge_config.synchronizerMode === START_SYNCHRONIZER) { 
