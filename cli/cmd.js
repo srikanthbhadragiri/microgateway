@@ -223,7 +223,7 @@ const setup = function setup() {
                 debug(filePath);
                 var parsedUrl = url.parse(options.configUrl, true);
                 debug(options.configUrl);
-
+                
                 if (parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:") {
                     debug("downloading file...");
                     request.get(options.configUrl, function(error, response, body) {
