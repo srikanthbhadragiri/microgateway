@@ -16,6 +16,9 @@ const debug = require('debug')('microgateway');
 const jsdiff = require('diff');
 const _ = require('lodash');
 //const os = require('os');
+const { exec } = require('child_process');
+
+
 const writeConsoleLog = require('microgateway-core').Logging.writeConsoleLog;
 edgeconfig.setConsoleLogger(writeConsoleLog);
 const Gateway = function() {};
@@ -83,19 +86,6 @@ Gateway.prototype.start = (options,cb) => {
         localproxy: localproxy,
         org: options.org,
         env: options.env
-    }
-
-    const envoySrcFile = configLocations.getEnvoyInitPath();
-    const envoyDestFile = configLocations.getEnvoyConfigPath();
-
-    if(options.envoy && options.envoy === 'yes'){
-        if(!fs.existsSync(envoyDestFile)) {
-            fs.copyFile(envoySrcFile, envoyDestFile, (err) => {
-                if ( err ) {
-                    writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},"Failed to copy emg-envoy-proxy-config.yaml file %s", err);
-                }
-            });
-        }
     }
 
     const startSynchronizer = (err, config) => {
@@ -260,6 +250,40 @@ Gateway.prototype.start = (options,cb) => {
     };
 
     const sourceConfig = edgeconfig.load(configOptions);
+
+    if(options.envoy && options.envoy === 'yes'){
+
+        const envoySrcFile = configLocations.getEnvoyInitPath();
+        const envoyDestFile = configLocations.getEnvoyConfigPath();
+
+        const envoyConfOptions = {
+            source: envoyDestFile,
+        };
+
+        if(!fs.existsSync(envoyDestFile)) {
+            fs.copyFile(envoySrcFile, envoyDestFile, (err) => {
+                if ( err ) {
+                    writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},"Failed to copy emg-envoy-proxy-config.yaml file %s", err);
+                }
+            });
+        }
+
+        const envoyConfig = edgeconfig.load(envoyConfOptions);
+
+        // assign emg port to envoy
+        envoyConfig.static_resources.listeners[0].address.socket_address.port_value = sourceConfig.edgemicro.port;
+        edgeconfig.save(envoyConfig, envoyDestFile);
+
+        exec('getenvoy run standard:1.11.1 -- --config-path ~/.edgemicro/emg-envoy-proxy.yaml', (err, stdout, stderr) => {
+            if (err) {
+                writeConsoleLog('error',{component: CONSOLE_LOG_TAG_COMP},'error in starting envoy',err);
+            } else {
+                debug(`stdout: ${stdout}`);
+                debug(`stderr: ${stderr}`);
+            }
+        });
+
+    }
     
     if(sourceConfig.edge_config.synchronizerMode === START_SYNCHRONIZER) { 
         edgeconfig.get(configOptions, startSynchronizer);
