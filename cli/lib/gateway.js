@@ -251,9 +251,12 @@ Gateway.prototype.start = (options,cb) => {
 
     const sourceConfig = edgeconfig.load(configOptions);
 
-    const startEnvoyProxy = (envoyConfOptions) => {
-        const envoyConfig = edgeconfig.load(envoyConfOptions);
+    const startEnvoyProxy = (envoyDestFile) => {
 
+        const envoyConfOptions = {
+            source: envoyDestFile,
+        };
+        const envoyConfig = edgeconfig.load(envoyConfOptions);
         // assign emg port to envoy
         envoyConfig.static_resources.listeners[0].address.socket_address.port_value = sourceConfig.edgemicro.port;
         edgeconfig.save(envoyConfig, envoyDestFile);
@@ -273,17 +276,15 @@ Gateway.prototype.start = (options,cb) => {
         const envoySrcFile = configLocations.getEnvoyInitPath();
         const envoyDestFile = configLocations.getEnvoyConfigPath();
 
-        const envoyConfOptions = {
-            source: envoyDestFile,
-        };
-
         if(!fs.existsSync(envoyDestFile)) {
             fs.copyFile(envoySrcFile, envoyDestFile, (err) => {
                 if ( err ) {
                     writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},"Failed to copy emg-envoy-proxy-config.yaml file %s", err);
                 }
-                startEnvoyProxy(envoyConfOptions);
+                startEnvoyProxy(envoyDestFile);
             });
+        }else{
+            startEnvoyProxy(envoyDestFile);
         }
     }
     
