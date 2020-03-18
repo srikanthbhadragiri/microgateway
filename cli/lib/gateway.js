@@ -16,6 +16,10 @@ const debug = require('debug')('microgateway');
 const jsdiff = require('diff');
 const _ = require('lodash');
 //const os = require('os');
+const { exec } = require('child_process');
+const { spawn } = require("child_process");
+
+
 const writeConsoleLog = require('microgateway-core').Logging.writeConsoleLog;
 edgeconfig.setConsoleLogger(writeConsoleLog);
 const Gateway = function() {};
@@ -83,19 +87,6 @@ Gateway.prototype.start = (options,cb) => {
         localproxy: localproxy,
         org: options.org,
         env: options.env
-    }
-
-    const envoySrcFile = configLocations.getEnvoyInitPath();
-    const envoyDestFile = configLocations.getEnvoyConfigPath();
-
-    if(options.envoy && options.envoy === 'yes'){
-        if(!fs.existsSync(envoyDestFile)) {
-            fs.copyFile(envoySrcFile, envoyDestFile, (err) => {
-                if ( err ) {
-                    writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},"Failed to copy emg-envoy-proxy-config.yaml file %s", err);
-                }
-            });
-        }
     }
 
     const startSynchronizer = (err, config) => {
@@ -179,6 +170,17 @@ Gateway.prototype.start = (options,cb) => {
                     mgCluster.terminate(() => {
                         writeConsoleLog('log', { component: CONSOLE_LOG_TAG_COMP }, 'Stop completed');
                         socket.sendMessage(true);
+                        if( options.envoy && options.envoy === 'yes'){
+                            // kill envoy if already running
+                                exec('pkill -f emg-envoy-proxy.yaml', (err, stdout, stderr) => {
+                                    if ( err && err.code && err.signal ) {
+                                        writeConsoleLog('error',{component: CONSOLE_LOG_TAG_COMP},'error in killing envoy process',err);
+                                    } else {
+                                        debug(`stdout: ${stdout}`);
+                                        debug(`stderr: ${stderr}`);
+                                    }
+                                });
+                        }
                         process.exit(0);
                     });
                 }
@@ -260,20 +262,119 @@ Gateway.prototype.start = (options,cb) => {
     };
 
     const sourceConfig = edgeconfig.load(configOptions);
-    
-    if(sourceConfig.edge_config.synchronizerMode === START_SYNCHRONIZER) { 
-        edgeconfig.get(configOptions, startSynchronizer);
-        setInterval(()=>{
-            edgeconfig.get(configOptions, startSynchronizer)
-        },sourceConfig.edgemicro.config_change_poll_interval * 1000);
-    }else if(sourceConfig.edge_config.synchronizerMode === START_SYNCHRONIZER_AND_EMG){
-        edgeconfig.get(configOptions, startGateway);
-    }else{
-        // This is for the case 0.
-        // There could be a possibility of this being handled differently later, 
-        // so we have created a separate case for a later TODO if needed
-        edgeconfig.get(configOptions, startGateway);
+
+
+    const runEnvoyProxy = () => {
+
+        writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},"Running envoy");
+
+        const envoyRun = spawn(configLocations.getEnvoyPath() ,["run","standard:1.11.1","--",
+        "--config-path "+configLocations.getEnvoyConfigPath() ],{detached: true});
+
+        let emgStarted = false;
+
+        envoyRun.stdout.on("data", data => {
+           debug(`envoy stdout: ${data}`);
+           if ( !emgStarted ) {
+            emgStarted = true;
+            startEmgProcess();
+           }
+          
+        });
+
+        envoyRun.stderr.on("data", data => {
+            debug(`envoy stderr: ${data}`);
+        });
+
+        envoyRun.on('error', (error) => {
+            debug(`envoy error: ${error.message}`);
+        });
+
+        envoyRun.on("close", code => {
+            debug(`run envoy child process exited with code ${code}`);
+        });
+
     }
+
+    const startEnvoyProxy = (envoyDestFile) => {
+
+        const envoyConfOptions = {
+            source: envoyDestFile,
+        };
+        const envoyConfig = edgeconfig.load(envoyConfOptions);
+        // assign emg port to envoy
+        envoyConfig.static_resources.listeners[0].address.socket_address.port_value = sourceConfig.edgemicro.port;
+        envoyConfig.admin.address.socket_address.port_value = sourceConfig.edgemicro.port+1;
+        envoyConfig.static_resources.clusters[0].load_assignment.endpoints[0].lb_endpoints[0].endpoint.address.socket_address.port_value = sourceConfig.edgemicro.port + 2;
+        edgeconfig.save(envoyConfig, envoyDestFile);
+
+        // kill envoy if already running
+        writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},"Killing envoy if already running");
+        exec('pkill -f emg-envoy-proxy.yaml', (err, stdout, stderr) => {
+            if ( err && err.code && err.signal ) {
+                writeConsoleLog('error',{component: CONSOLE_LOG_TAG_COMP},'error in killing envoy process',err);
+            } else {
+                debug(`stdout: ${stdout}`);
+                debug(`stderr: ${stderr}`);
+            }
+            runEnvoyProxy();
+        });
+    }
+
+    const postEnvoyInstall = () => {
+        const envoySrcFile = configLocations.getEnvoyInitPath();
+        const envoyDestFile = configLocations.getEnvoyConfigPath();
+
+        if(!fs.existsSync(envoyDestFile)) {
+            writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},"Copying envoy config file");
+            fs.copyFile(envoySrcFile, envoyDestFile, (err) => {
+                if ( err ) {
+                    writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},"Failed to copy emg-envoy-proxy-config.yaml file %s", err);
+                }
+                startEnvoyProxy(envoyDestFile);
+            });
+        }else{
+            startEnvoyProxy(envoyDestFile);
+        }
+    }
+
+    const startEmgProcess = () => {
+        if(sourceConfig.edge_config.synchronizerMode === START_SYNCHRONIZER) { 
+            edgeconfig.get(configOptions, startSynchronizer);
+            setInterval(()=>{
+                edgeconfig.get(configOptions, startSynchronizer)
+            },sourceConfig.edgemicro.config_change_poll_interval * 1000);
+        }else if(sourceConfig.edge_config.synchronizerMode === START_SYNCHRONIZER_AND_EMG){
+            edgeconfig.get(configOptions, startGateway);
+        }else{
+            // This is for the case 0.
+            // There could be a possibility of this being handled differently later, 
+            // so we have created a separate case for a later TODO if needed
+            edgeconfig.get(configOptions, startGateway);
+        }
+    }
+
+    if(options.envoy && options.envoy === 'yes') {   
+        if( !fs.existsSync(configLocations.getEnvoyPath())) {
+            writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},"Downloading getenvoy.. this might take moment");
+            // install envoy in the edgemicro dir
+            exec('curl -L https://getenvoy.io/cli | bash -s -- -b ~/.edgemicro', (err, stdout, stderr) => {
+                if (err) {
+                    writeConsoleLog('error',{component: CONSOLE_LOG_TAG_COMP},'error in downloading envoy',err);
+                } else {
+                    debug(`install getenvoy stdout: ${stdout}`);
+                    debug(`install getenvoy stderr: ${stderr}`);
+                    postEnvoyInstall();
+                }
+            });
+        } else {
+            postEnvoyInstall();
+        }
+    } else {
+        startEmgProcess();
+    }
+    
+   
 };
 
 Gateway.prototype.reload = (options) => {
