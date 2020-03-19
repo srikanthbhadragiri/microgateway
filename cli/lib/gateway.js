@@ -169,6 +169,17 @@ Gateway.prototype.start = (options,cb) => {
                     mgCluster.terminate(() => {
                         writeConsoleLog('log', { component: CONSOLE_LOG_TAG_COMP }, 'Stop completed');
                         socket.sendMessage(true);
+                        if( options.envoy && options.envoy === 'yes'){
+                            // kill envoy if already running
+                                exec('pkill -f emg-envoy-proxy.yaml', (err, stdout, stderr) => {
+                                    if ( err && err.code && err.signal ) {
+                                        writeConsoleLog('error',{component: CONSOLE_LOG_TAG_COMP},'error in killing envoy process',err);
+                                    } else {
+                                        debug(`stdout: ${stdout}`);
+                                        debug(`stderr: ${stderr}`);
+                                    }
+                                });
+                        }
                         process.exit(0);
                     });
                 }
@@ -251,6 +262,19 @@ Gateway.prototype.start = (options,cb) => {
 
     const sourceConfig = edgeconfig.load(configOptions);
 
+
+    const runEnvoyProxy = () => {
+        exec('~/.edgemicro/getenvoy run standard:1.11.1 -- --config-path ~/.edgemicro/emg-envoy-proxy.yaml &', (err, stdout, stderr) => {
+            if (err) {
+                writeConsoleLog('error',{component: CONSOLE_LOG_TAG_COMP},'error in starting envoy',err);
+            } else {
+                debug(`stdout: ${stdout}`);
+                debug(`stderr: ${stderr}`);
+                startEmgProcess();
+            }
+        });
+    }
+
     const startEnvoyProxy = (envoyDestFile) => {
 
         const envoyConfOptions = {
@@ -259,20 +283,23 @@ Gateway.prototype.start = (options,cb) => {
         const envoyConfig = edgeconfig.load(envoyConfOptions);
         // assign emg port to envoy
         envoyConfig.static_resources.listeners[0].address.socket_address.port_value = sourceConfig.edgemicro.port;
+        envoyConfig.admin.address.socket_address.port_value = sourceConfig.edgemicro.port+1;
+        envoyConfig.static_resources.clusters[0].load_assignment.endpoints[0].lb_endpoints[0].endpoint.address.socket_address.port_value = sourceConfig.edgemicro.port + 2;
         edgeconfig.save(envoyConfig, envoyDestFile);
 
-        exec('getenvoy run standard:1.11.1 -- --config-path ~/.edgemicro/emg-envoy-proxy.yaml', (err, stdout, stderr) => {
-            if (err) {
-                writeConsoleLog('error',{component: CONSOLE_LOG_TAG_COMP},'error in starting envoy',err);
+        // kill envoy if already running
+        exec('pkill -f emg-envoy-proxy.yaml', (err, stdout, stderr) => {
+            if ( err && err.code && err.signal ) {
+                writeConsoleLog('error',{component: CONSOLE_LOG_TAG_COMP},'error in killing envoy process',err);
             } else {
                 debug(`stdout: ${stdout}`);
                 debug(`stderr: ${stderr}`);
             }
+            runEnvoyProxy();
         });
     }
 
-    if(options.envoy && options.envoy === 'yes'){
-
+    const postEnvoyInstall = () => {
         const envoySrcFile = configLocations.getEnvoyInitPath();
         const envoyDestFile = configLocations.getEnvoyConfigPath();
 
@@ -287,20 +314,43 @@ Gateway.prototype.start = (options,cb) => {
             startEnvoyProxy(envoyDestFile);
         }
     }
-    
-    if(sourceConfig.edge_config.synchronizerMode === START_SYNCHRONIZER) { 
-        edgeconfig.get(configOptions, startSynchronizer);
-        setInterval(()=>{
-            edgeconfig.get(configOptions, startSynchronizer)
-        },sourceConfig.edgemicro.config_change_poll_interval * 1000);
-    }else if(sourceConfig.edge_config.synchronizerMode === START_SYNCHRONIZER_AND_EMG){
-        edgeconfig.get(configOptions, startGateway);
-    }else{
-        // This is for the case 0.
-        // There could be a possibility of this being handled differently later, 
-        // so we have created a separate case for a later TODO if needed
-        edgeconfig.get(configOptions, startGateway);
+
+    const startEmgProcess = () => {
+        if(sourceConfig.edge_config.synchronizerMode === START_SYNCHRONIZER) { 
+            edgeconfig.get(configOptions, startSynchronizer);
+            setInterval(()=>{
+                edgeconfig.get(configOptions, startSynchronizer)
+            },sourceConfig.edgemicro.config_change_poll_interval * 1000);
+        }else if(sourceConfig.edge_config.synchronizerMode === START_SYNCHRONIZER_AND_EMG){
+            edgeconfig.get(configOptions, startGateway);
+        }else{
+            // This is for the case 0.
+            // There could be a possibility of this being handled differently later, 
+            // so we have created a separate case for a later TODO if needed
+            edgeconfig.get(configOptions, startGateway);
+        }
     }
+
+    if(options.envoy && options.envoy === 'yes') {   
+        if( !fs.existsSync(configLocations.getEnvoyPath())) {
+            // install envoy in the edgemicro dir
+            exec('curl -L https://getenvoy.io/cli | bash -s -- -b ~/.edgemicro', (err, stdout, stderr) => {
+                if (err) {
+                    writeConsoleLog('error',{component: CONSOLE_LOG_TAG_COMP},'error in downloading envoy',err);
+                } else {
+                    debug(`stdout: ${stdout}`);
+                    debug(`stderr: ${stderr}`);
+                    postEnvoyInstall();
+                }
+            });
+        } else {
+            postEnvoyInstall();
+        }
+    } else {
+        startEmgProcess();
+    }
+    
+   
 };
 
 Gateway.prototype.reload = (options) => {

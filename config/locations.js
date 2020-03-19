@@ -11,6 +11,7 @@ const cacheFile =  'cache-config.yaml';
 const defaultIPCFileName = 'edgemicro';
 const isWin = /^win/.test(process.platform);
 const envoyConfigFile = 'emg-envoy-proxy.yaml';
+const getEnvoy = 'getenvoy';
 
 module.exports = {
   getInitPath: function(opts){
@@ -58,5 +59,8 @@ module.exports = {
   },
   getEnvoyConfigPath: function(){
     return path.join(this.homeDir,envoyConfigFile);
+  },
+  getEnvoyPath: function(){
+    return  path.join(this.homeDir,getEnvoy);
   },
 };
