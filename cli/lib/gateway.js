@@ -355,6 +355,10 @@ Gateway.prototype.start = (options,cb) => {
     }
 
     if(options.envoy) {   
+        if(isWin) {
+            writeConsoleLog('log', { component: CONSOLE_LOG_TAG_COMP }, 'Cannot use --envoy or -y option on windows');
+            return;
+        }
         if( !fs.existsSync(configLocations.getEnvoyPath())) {
             writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},"Downloading getenvoy.. this might take moment");
             // install envoy in the edgemicro dir
