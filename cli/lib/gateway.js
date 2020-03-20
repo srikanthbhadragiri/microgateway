@@ -170,7 +170,7 @@ Gateway.prototype.start = (options,cb) => {
                     mgCluster.terminate(() => {
                         writeConsoleLog('log', { component: CONSOLE_LOG_TAG_COMP }, 'Stop completed');
                         socket.sendMessage(true);
-                        if( options.envoy && options.envoy === 'yes'){
+                        if( options.envoy){
                             // kill envoy if already running
                                 exec('pkill -f emg-envoy-proxy.yaml', (err, stdout, stderr) => {
                                     if ( err && err.code && err.signal ) {
@@ -354,7 +354,7 @@ Gateway.prototype.start = (options,cb) => {
         }
     }
 
-    if(options.envoy && options.envoy === 'yes') {   
+    if(options.envoy) {   
         if( !fs.existsSync(configLocations.getEnvoyPath())) {
             writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},"Downloading getenvoy.. this might take moment");
             // install envoy in the edgemicro dir
