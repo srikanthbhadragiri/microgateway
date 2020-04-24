@@ -1,5 +1,9 @@
 "use strict";
 
+const tmp = require('tmp');
+const cpr = require('cpr');
+const async = require('async');
+const rimraf = require('rimraf');
 //const util = require("util");
 //const debug = require("debug")("jwkrotatekey");
 //const request = require("request");
@@ -32,7 +36,8 @@ UpgradeAuth.prototype.upgradeauth = function upgradeauth(options /*, cb */) {
         directory: path.join(__dirname, '../..', 'node_modules', 'microgateway-edgeauth'),
         'import-only': false,
         'resolve-modules': false,
-        virtualHosts: options.virtualhost || 'secure'
+        virtualHosts: options.virtualhost || 'secure',
+        noncpsOrg: options.noncpsOrg
     };
 
     var edge_config = {
@@ -40,6 +45,8 @@ UpgradeAuth.prototype.upgradeauth = function upgradeauth(options /*, cb */) {
         authUri: 'na',
         virtualhosts: opts.virtualHosts
     };
+
+    var tasks = [];
 
     if (options.token) {
         opts.token = options.token;
@@ -50,10 +57,31 @@ UpgradeAuth.prototype.upgradeauth = function upgradeauth(options /*, cb */) {
 
     deployAuth = deployAuthLib(edge_config, null);
 
-    deployAuth.deployProxyWithPassword(options.mgmtUrl, 'na', opts, opts.directory, function(err /*, result */ ) {
+    const homeDir = process.env[(process.platform === 'win32') ? 'USERPROFILE' : 'HOME'];
+    var tmpDir = tmp.dirSync({
+        keep: true,
+        dir: path.resolve(homeDir, '.edgemicro')
+    });
+
+    tasks.push(function(cb) {
+        cpr(path.resolve(__dirname, '..', '..', 'node_modules', 'microgateway-edgeauth'), tmpDir.name, cb);
+    });
+
+    tasks.push(function(cb) {
+        const dir = tmpDir.name;
+        deployAuth.deployProxyWithPassword(options.mgmtUrl, 'na', opts, dir, function(err , result ) {
+            if (err) {
+                writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},err);
+                cb(err);
+            }
+        });
+    });
+
+    async.series(tasks, function(err) {
+        writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP}, 'Clear temp files');
+        rimraf(tmpDir.name);
         if (err) {
             writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},err);
         }
     });
-
 }
