@@ -243,18 +243,26 @@ function editVirtualHosts(file, virtualhosts) {
 }
 
 function editJavaCallout(file, nonCps) {
-    const currentCpsContent =  '<Property name="org.noncps">false</Property>';
-    const newNonCpsContent = `<Property name="org.noncps">${nonCps}</Property>`;
+    const cpsFalse = '<Property name="org.noncps">false</Property>';
+    const cpsTrue = '<Property name="org.noncps">true</Property>';
 
-   try{
-       let content = fs.readFileSync(file, 'utf8');
-       content = content.replace(currentCpsContent, newNonCpsContent);
-       fs.unlinkSync(file);
-       debug('editing JavaCallOut');
-       fs.writeFileSync(file, content, 'utf8');
-   }catch (err){
+    try{
+        let content = fs.readFileSync(file, 'utf8');
+        if(nonCps){
+            if(!content.includes(cpsTrue)){
+                content = content.replace(cpsFalse, cpsTrue);
+            }
+        } else{
+            if(!content.includes(cpsFalse)){
+                content = content.replace(cpsTrue, cpsFalse);
+            }
+        }
+        fs.unlinkSync(file);
+        debug('editing JavaCallOut');
+        fs.writeFileSync(file, content, 'utf8');
+    }catch (err){
        debug(err);
-   }
+    }
 }
 
 Deployment.prototype.deployProxyWithPassword = function deployProxyWithPassword(managementUri, authUri, options, dir, callback) {
@@ -280,10 +288,8 @@ Deployment.prototype.deployProxyWithPassword = function deployProxyWithPassword(
     }
     editVirtualHosts(dir + "/apiproxy/proxies/default.xml", opts.virtualhosts);
 
-    // set org.nonCps to true if its a nonCps org.
-    if(opts.nonCps){
-        editJavaCallout(dir + "/apiproxy/policies/JavaCallout.xml", opts.nonCps)
-    }
+    // set org.nonCps value
+    editJavaCallout(dir + "/apiproxy/policies/JavaCallout.xml", opts.nonCps)
 
     //set the edgemicro-internal endpoint in edgemicro-auth
     if (options.runtimeUrl) {
