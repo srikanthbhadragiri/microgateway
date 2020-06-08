@@ -477,6 +477,8 @@ const setup = function setup() {
         .option('-t, --token <token>', 'OAuth token to use with management API')
         .option('-v, --virtualhost <virtualhost>', 'virtual host of the proxy')
         .option('-b, --baseuri <baseuri>', 'baseuri for management apis')
+        .option('-k, --key <key>', 'key for authenticating with Edge')
+        .option('-s, --secret <secret>', 'secret for authenticating with Edge')
         .description('upgrade kvm to support JWT Key rotation')
         .action((options) => {
             options.error = optionError(options);
@@ -488,17 +490,14 @@ const setup = function setup() {
             }
             if (options.token) {
                 upgradekvm.upgradekvm(options, () => {});
-            } else {
-                if (!options.username) {
-                    return options.error('username is required');
-                }
-                promptForPassword(options, (options) => {
-                    if (!options.password) {
-                        return options.error('password is required');
-                    }
-                    upgradekvm.upgradekvm(options, () => {});
-                });
+            } 
+            if (!options.key) {
+                return options.error('key is required');
             }
+            if (!options.secret) {
+                return options.error('secret is required');
+            }
+            upgradekvm.upgradekvm(options, () => {});
         });
 
     commander
