@@ -472,13 +472,11 @@ const setup = function setup() {
         .command('upgradekvm')
         .option('-o, --org <org>', 'the organization')
         .option('-e, --env <env>', 'the environment')
-        .option('-u, --username <user>', 'username of the organization admin')
-        .option('-p, --password <password>', 'password of the organization admin')
+        .option('-k, --key <key>', 'key for authenticating with Edge')
+        .option('-s, --secret <secret>', 'secret for authenticating with Edge')
         .option('-t, --token <token>', 'OAuth token to use with management API')
         .option('-v, --virtualhost <virtualhost>', 'virtual host of the proxy')
         .option('-b, --baseuri <baseuri>', 'baseuri for management apis')
-        .option('-k, --key <key>', 'key for authenticating with Edge')
-        .option('-s, --secret <secret>', 'secret for authenticating with Edge')
         .description('upgrade kvm to support JWT Key rotation')
         .action((options) => {
             options.error = optionError(options);
