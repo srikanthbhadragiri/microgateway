@@ -1,4 +1,5 @@
 "use strict";
+
 const tmp = require('tmp');
 const cpr = require('cpr');
 const async = require('async');
@@ -35,7 +36,8 @@ UpgradeAuth.prototype.upgradeauth = function upgradeauth(options /*, cb */) {
         directory: path.join(__dirname, '../..', 'node_modules', 'microgateway-edgeauth'),
         'import-only': false,
         'resolve-modules': false,
-        virtualHosts: options.virtualhost || 'secure'
+        virtualHosts: options.virtualhost || 'secure',
+        noncpsOrg: options.noncpsOrg
     };
 
     var edge_config = {
@@ -66,13 +68,8 @@ UpgradeAuth.prototype.upgradeauth = function upgradeauth(options /*, cb */) {
     });
 
     tasks.push(function(cb) {
-        rimraf(tmpDir.name, cb);
-    })
-
-    tasks.push(function(cb) {
         const dir = tmpDir.name;
-        console.log('dir ', dir);
-        deployAuth.deployProxyWithPassword(options.mgmtUrl, 'na', opts, dir, function(err /*, result */ ) {
+        deployAuth.deployProxyWithPassword(options.mgmtUrl, 'na', opts, dir, function(err , result ) {
             if (err) {
                 writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},err);
                 cb(err);
@@ -81,11 +78,10 @@ UpgradeAuth.prototype.upgradeauth = function upgradeauth(options /*, cb */) {
     });
 
     async.series(tasks, function(err) {
+        writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP}, 'Clear temp files');
+        rimraf(tmpDir.name);
         if (err) {
-            return cb(err);
+            writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},err);
         }
-
-        //cb(null);
-    })
-
+    });
 }
