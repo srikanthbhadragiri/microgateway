@@ -32,7 +32,8 @@ UpgradeAuth.prototype.upgradeauth = function upgradeauth(options /*, cb */) {
         directory: path.join(__dirname, '../..', 'node_modules', 'microgateway-edgeauth'),
         'import-only': false,
         'resolve-modules': false,
-        virtualHosts: options.virtualhost || 'secure'
+        virtualHosts: options.virtualhost || 'secure',
+        noncpsOrg: options.noncpsOrg
     };
 
     var edge_config = {

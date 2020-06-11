@@ -9,6 +9,9 @@ const path = require('path');
 const async = require('async')
 const util = require('util')
 const fs = require('fs')
+const xml2js = require("xml2js");
+const parseString = xml2js.parseString;
+
 const DEFAULT_HOSTS = 'default,secure';
 //const url = require('url');
 const debug = require('debug')('edgemicro-auth')
@@ -242,6 +245,56 @@ function editVirtualHosts(file, virtualhosts) {
 
 }
 
+function editJavaCallout(file, nonCps, cb) {
+    try{
+        const content = fs.readFileSync(file, 'utf8');
+        parseString(content, { explicitArray: false }, function(err, originXmlJsonObject) {
+            if (err){
+                writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},"error parsing JavaCallout.xml file: "+ err);
+                cb();
+            }
+            if(nonCps){
+                if( originXmlJsonObject.JavaCallout.Properties && originXmlJsonObject.JavaCallout.Properties.Property ){
+                    if(Array.isArray( originXmlJsonObject.JavaCallout.Properties.Property )){
+                        const noncpsObj = originXmlJsonObject.JavaCallout.Properties.Property.find(p => p['$'].name === 'org.noncps');
+                        if(noncpsObj){
+                            noncpsObj['_'] = 'true';
+                        }else{
+                            originXmlJsonObject.JavaCallout.Properties.Property.push({ _: 'true', '$': { name: 'org.noncps' }})
+                        }
+                    }else{
+                        if( originXmlJsonObject.JavaCallout.Properties.Property['$'].name === 'org.noncps'){
+                            originXmlJsonObject.JavaCallout.Properties.Property['_'] = 'true';
+                        }else{
+                            originXmlJsonObject.JavaCallout.Properties.Property = [originXmlJsonObject.JavaCallout.Properties.Property,{ _: 'true', '$': { name: 'org.noncps' }}]
+                        }
+                    }
+                }else{
+                    originXmlJsonObject.JavaCallout.Properties = { Property: { _: 'true', '$': { name: 'org.noncps' }} };
+                }
+            } else{
+                if(Array.isArray( originXmlJsonObject.JavaCallout.Properties.Property )){
+                    originXmlJsonObject.JavaCallout.Properties.Property = originXmlJsonObject.JavaCallout.Properties.Property.filter(p => p['$'].name !== 'org.noncps');
+                }else{
+                    if( originXmlJsonObject.JavaCallout.Properties !== '' && originXmlJsonObject.JavaCallout.Properties.Property['$'].name === 'org.noncps'){
+                        originXmlJsonObject.JavaCallout.Properties = '';
+                    }
+                }
+            }
+            var builder = new xml2js.Builder();
+            var modifiedXmlContent = builder.buildObject(originXmlJsonObject);
+            fs.unlinkSync(file);
+            debug('editing JavaCallOut');
+            fs.writeFileSync(file, modifiedXmlContent, 'utf8');
+            cb();
+        });
+
+    }catch (err){
+        debug(err);
+        cb();
+    }
+}
+
 Deployment.prototype.deployProxyWithPassword = function deployProxyWithPassword(managementUri, authUri, options, dir, callback) {
     assert(dir, 'dir must be configured')
     assert(callback, 'callback must be present')
@@ -253,7 +306,8 @@ Deployment.prototype.deployProxyWithPassword = function deployProxyWithPassword(
         verbose: options.verbose,
         api: options.proxyName,
         directory: dir,
-        virtualhosts: options.virtualHosts || DEFAULT_HOSTS
+        virtualhosts: options.virtualHosts || DEFAULT_HOSTS,
+        nonCps: options.noncpsOrg
     };
 
     if (options.token) {
@@ -263,36 +317,47 @@ Deployment.prototype.deployProxyWithPassword = function deployProxyWithPassword(
         opts.password = options.password;
     }
     editVirtualHosts(dir + "/apiproxy/proxies/default.xml", opts.virtualhosts);
-    //set the edgemicro-internal endpoint in edgemicro-auth
-    if (options.runtimeUrl) {
-      setEdgeMicroInternalEndpoint(dir + "/apiproxy/policies/Authenticate-Call.xml", options.runtimeUrl);
-    } 
-    writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},'Give me a minute or two... this can take a while...');
-    apigeetool.deployProxy(opts, function(err) {
-        if (err) {
-            if (err.code === 'ECONNRESET' && err.message === 'socket hang up') {
-                err.message = 'Deployment timeout. Please try again or use the --upload option.'
-            } else if (err.message === 'Get API info returned status 401') {
-                err.message = 'Invalid credentials or not sufficient permission. Please correct and try again.'
-            }
 
-            return callback(err);
-        } else {
-            writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},'App %s deployed.', options.proxyName);
-            callback(null, options.runtimeUrl ? authUri + '/publicKey' : util.format(authUri + '/publicKey', options.org, options.env));
-        }
+    var tasks = [];
 
-        //writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},'App %s added to your org. Now adding resources.', options.proxyName);
-        /*    opts.password = options.password; // override a apigeetool side-effect bug
-            installJavaCallout(managementUri, opts, function(err) {
-              if (err) {
+    tasks.push(function(cb) {
+        // set org.nonCps value
+        editJavaCallout(dir + "/apiproxy/policies/JavaCallout.xml", opts.nonCps, cb)
+    })
+
+    async.series(tasks, function(err /*, results */) {
+
+        //set the edgemicro-internal endpoint in edgemicro-auth
+        if (options.runtimeUrl) {
+            setEdgeMicroInternalEndpoint(dir + "/apiproxy/policies/Authenticate-Call.xml", options.runtimeUrl);
+        } 
+        writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},'Give me a minute or two... this can take a while...');
+        apigeetool.deployProxy(opts, function(err) {
+            if (err) {
+                if (err.code === 'ECONNRESET' && err.message === 'socket hang up') {
+                    err.message = 'Deployment timeout. Please try again or use the --upload option.'
+                } else if (err.message === 'Get API info returned status 401') {
+                    err.message = 'Invalid credentials or not sufficient permission. Please correct and try again.'
+                }
+    
                 return callback(err);
-              }
-              writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},'App %s deployed.', options.proxyName);
-              callback(null, options.runtimeUrl ? authUri + '/publicKey' : util.format(authUri + '/publicKey', options.org, options.env));
-
-            });*/
-    });
+            } else {
+                writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},'App %s deployed.', options.proxyName);
+                callback(null, options.runtimeUrl ? authUri + '/publicKey' : util.format(authUri + '/publicKey', options.org, options.env));
+            }
+    
+            //writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},'App %s added to your org. Now adding resources.', options.proxyName);
+            /*    opts.password = options.password; // override a apigeetool side-effect bug
+                installJavaCallout(managementUri, opts, function(err) {
+                    if (err) {
+                    return callback(err);
+                    }
+                    writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},'App %s deployed.', options.proxyName);
+                    callback(null, options.runtimeUrl ? authUri + '/publicKey' : util.format(authUri + '/publicKey', options.org, options.env));
+    
+                });*/
+        });
+    })
 }
 
 /*

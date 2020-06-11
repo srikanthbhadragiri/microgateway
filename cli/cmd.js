@@ -514,7 +514,7 @@ const setup = function setup() {
         .action((options) => {
             options.error = optionError(options);
             options.token = options.token || process.env.EDGEMICRO_SAML_TOKEN;
-
+            options.noncpsOrg = false;
             if (!options.org) {
                 return options.error('org is required');
             }
