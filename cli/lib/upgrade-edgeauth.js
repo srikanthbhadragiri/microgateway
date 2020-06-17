@@ -73,6 +73,9 @@ UpgradeAuth.prototype.upgradeauth = function upgradeauth(options /*, cb */) {
             if (err) {
                 writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},err);
                 cb(err);
+            }else{
+                writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP}, 'Clear temp files');
+                rimraf(tmpDir.name, cb);
             }
         });
     });
