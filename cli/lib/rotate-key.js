@@ -2,6 +2,8 @@
 
 const pem = require("pem");
 const util = require("util");
+const fs = require('fs');
+const path = require('path');
 const debug = require("debug")("jwkrotatekey");
 //const commander = require('commander');
 const request = require("request");
@@ -26,6 +28,18 @@ function generateCredentialsObject(options) {
     };
 }
 
+function extractPublicKey(options, newServiceKey, newCertificate) {
+    writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},"Extract new public key");
+    pem.getPublicKey(newCertificate, function(err, newPublicKey) {
+        if (err) {
+            writeConsoleLog('error',{component: CONSOLE_LOG_TAG_COMP},err);
+            process.exit(1);
+        } else {
+            updateOrInsertEntry(options, newServiceKey, newCertificate, newPublicKey.publicKey);
+        }
+    });
+}
+
 const RotateKey = function () {
     
 }
@@ -35,25 +49,30 @@ return new RotateKey();
 }
 
 RotateKey.prototype.rotatekey = function rotatekey(options) {
-    writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},"Generating New key/cert pair...");
-    createCert(function(err, newkeys) {
-        if (err){
-            writeConsoleLog('error',{component: CONSOLE_LOG_TAG_COMP},err);
+    if (options.privatekey && options.cert) {
+        writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},"Reading key/cert pair...");
+        //reading key and cert from given file paths.
+        try{
+            const newServiceKey = fs.readFileSync(path.resolve(options.privatekey), 'utf8');
+            const newCertificate = fs.readFileSync(path.resolve(options.cert), 'utf8');
+            extractPublicKey(options, newServiceKey, newCertificate);
+        }catch(err){
+            writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},err);
             process.exit(1);
-        } else{
-            const newServiceKey = newkeys.serviceKey;
-            const newCertificate = newkeys.certificate;
-            writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},"Extract new public key");
-            pem.getPublicKey(newCertificate, function(err, newPublicKey) {
-                if (err) {
-                    writeConsoleLog('error',{component: CONSOLE_LOG_TAG_COMP},err);
-                    process.exit(1);
-                } else {
-                    updateOrInsertEntry(options, newServiceKey, newCertificate, newPublicKey.publicKey);
-                }
-            });	
         }
-    });								
+    } else {
+        writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},"Generating New key/cert pair...");
+        createCert(function(err, newkeys) {
+            if (err){
+                writeConsoleLog('error',{component: CONSOLE_LOG_TAG_COMP},err);
+                process.exit(1);
+            } else{
+                const newServiceKey = newkeys.serviceKey;
+                const newCertificate = newkeys.certificate;
+                extractPublicKey(options, newServiceKey, newCertificate);
+            }
+        });
+    }
 }
 
 function updateOrInsertEntry(options, newServiceKey, newCertificate, newPublicKey){
@@ -69,6 +88,11 @@ function updateOrInsertEntry(options, newServiceKey, newCertificate, newPublicKe
         public_key: newCertificate,
         public_key1: newPublicKey
     };
+    if(options.nbf){
+        //converting min to milliseconds.
+        const nbf = options.nbf * 60 * 1000;
+        body.future_keys_nbf = nbf;
+    }
     request({
         uri: rotateKeyUri,
         auth: generateCredentialsObject(options),

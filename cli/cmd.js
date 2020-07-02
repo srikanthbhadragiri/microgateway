@@ -539,6 +539,9 @@ const setup = function setup() {
         .option('-s, --secret <secret>', 'secret for authenticating with Edge')
         .option('-i, --kid <kid>', 'new key identifier')
         .option('-r, --rotatekeyuri <rotatekeyuri>', 'rotate key url')
+        .option('-n, --nbf <nbf>', 'not before time in minutes')
+        .option('-p, --privatekey <privatekey>', 'Path to private key to be used by Apigee Edge')
+        .option('-c, --cert <cert>', 'Path to certificate to be used by Apigee Edge')
         .description('Rotate JWT Keys')
         .action((options) => {
             options.error = optionError(options);
@@ -556,6 +559,16 @@ const setup = function setup() {
             }
             if (options.rotatekeyuri && !options.rotatekeyuri.includes('http')) {
                 return options.error('rotatekeyuri requires a prototcol http or https')
+            }
+            if (options.nbf && options.nbf !== 'undefined' && isNaN(options.nbf)){
+                return options.error('nbf value should be numeric');
+            }else if(options.nbf && options.nbf !== 'undefined' && options.nbf - Math.floor(options.nbf) !== 0){
+                return options.error('nbf value should be numeric and whole number');
+            }
+            if (options.privatekey || options.cert) {
+                if (!options.privatekey || !options.cert) {
+                    return options.error('privatekey and cert must be passed together');
+                }
             }
             rotatekey.rotatekey(options);
         });
