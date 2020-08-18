@@ -196,7 +196,7 @@ Deployment.prototype.checkDeployedProxies = function checkDeployedProxies(option
 }
 
 function setEdgeMicroInternalEndpoint(file, runtimeUrl) {
-  const endpoint = "https://edgemicroservices.apigee.net";
+  const endpoint = "https://emgservices.apigee.net";
   var content = fs.readFileSync(file, 'utf-8');
   content = content.replace(endpoint, runtimeUrl);
   fs.unlinkSync(file);
