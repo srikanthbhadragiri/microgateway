@@ -84,7 +84,8 @@ Gateway.prototype.start = (options,cb) => {
         keys: keys,
         localproxy: localproxy,
         org: options.org,
-        env: options.env
+        env: options.env,
+        metrics: options.metrics !== undefined ? options.metrics : false
     }
 
     const startSynchronizer = (err, config) => {
