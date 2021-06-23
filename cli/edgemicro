@@ -24,8 +24,8 @@
 var edgemicroVersion = require('../package.json').version;
 const writeConsoleLog = require('microgateway-core').Logging.writeConsoleLog;
 const version = process.version;
-const ltsVersion = 8;
-const experimental = ["v7", "v9","v11","v13"];
+const ltsVersion = 10;
+const experimental = ["v11","v13"];
 const latest = 14;
 
 const CONSOLE_LOG_TAG_COMP = 'microgateway edgemicro';
@@ -44,8 +44,8 @@ for (var ver in experimental) {
 }
 var majorVersion = parseInt(version.split(".")[0].replace("v", ""));
 
-if (majorVersion == 8) {
-    writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},"Current NodeJS version is " + version + ".  Note, v8.x.x will be out of support soon. For more details, please see https://docs.apigee.com/release/notes/edge-microgateway-release-notes-0");
+if (majorVersion >= 10) {
+    writeConsoleLog('log',{component: CONSOLE_LOG_TAG_COMP},"Current NodeJS version is " + version + ".");
 }
 
 if (majorVersion < ltsVersion || majorVersion > latest) {

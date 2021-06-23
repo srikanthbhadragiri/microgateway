@@ -3,10 +3,6 @@ jobs:
     - stage: coverage_tests
       language: node_js
       node_js:
-        - '8'
-    - # stage name not required, will continue to use `test`
-      language: node_js
-      node_js:
         - '10'
     - # stage name not required, will continue to use `test`
       language: node_js
@@ -16,13 +12,6 @@ jobs:
       language: node_js
       node_js:
         - '14'
-    - stage: e2e-v8  # these can be made parallel by using different accounts or names
-      language: node_js
-      node_js:
-        - '8'
-      script:
-        - npm install -g js-yaml
-        - bash ./test-functional/e2evars.sh
     - stage: e2e-v10
       language: node_js
       node_js:
